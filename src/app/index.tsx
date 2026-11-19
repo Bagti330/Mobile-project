@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // 1. Import Store, Hook, dan Komponen Internal
 import { useReportStore } from '../store/useReportStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useLocationTracking } from '../hooks/useLocationTracking';
 import { CustomMarker } from '../components/CustomMarker';
 import { ReportDetailCard } from '../components/ReportDetailCard';
@@ -29,6 +30,11 @@ export default function HomeScreen() {
 
   // Local State untuk Kontrol Modal Form (Anggota 2)
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const hydrateAuth = useAuthStore((state) => state.hydrateAuth);
+
+  useEffect(() => {
+    void hydrateAuth();
+  }, [hydrateAuth]);
 
   // Koordinat Default jika lokasi GPS belum didapat
   const initialRegion = {
