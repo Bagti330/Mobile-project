@@ -40,7 +40,8 @@
           "locationAlwaysPermission": "Izinkan Civic Pulse mengakses lokasi Anda untuk pelacakan laporan di sekitar.",
           "locationWhenInUsePermission": "Izinkan Civic Pulse mengakses lokasi Anda untuk menampilkan posisi saat ini."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
