@@ -8,6 +8,8 @@ export interface ReportItem {
   severity: SeverityLevel;
   description: string;
   timestamp: string;
+  reporterNik?: string; // Akan dienkripsi via expo-secure-store
+  photoUri?: string;    // Path foto dari expo-file-system
   coordinate: {
     latitude: number;
     longitude: number;

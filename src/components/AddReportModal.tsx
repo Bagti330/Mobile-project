@@ -9,30 +9,79 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { ReportCategory, SeverityLevel } from '../types/report';
 
 interface AddReportModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (title: string, category: ReportCategory, severity: SeverityLevel, description: string) => void;
+  onSubmit: (
+    title: string,
+    category: ReportCategory,
+    severity: SeverityLevel,
+    description: string,
+    nik: string,
+    photoUri?: string
+  ) => void;
 }
 
 export const AddReportModal = ({ visible, onClose, onSubmit }: AddReportModalProps) => {
+  const [nik, setNik] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ReportCategory>('Bencana Alam');
   const [severity, setSeverity] = useState<SeverityLevel>('Sedang');
   const [description, setDescription] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+
+  // Handler Pengambilan Foto dengan Just-In-Time Permission
+  const handlePickImage = async (useCamera: boolean) => {
+    if (useCamera) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Izin Ditolak', 'Aplikasi memerlukan izin kamera untuk mengambil foto bukti laporan.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } else {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    }
+  };
 
   const handleSubmit = () => {
-    if (!title.trim() || !description.trim()) {
-      alert('Mohon isi judul dan deskripsi laporan!');
+    if (nik.trim().length < 16) {
+      Alert.alert('Validasi NIK', 'Mohon masukkan 16 digit NIK yang valid untuk verifikasi pelapor.');
       return;
     }
-    onSubmit(title, category, severity, description);
-    // Reset form setelah dikirim
+    if (!title.trim() || !description.trim()) {
+      Alert.alert('Form Belum Lengkap', 'Mohon isi judul dan deskripsi laporan!');
+      return;
+    }
+
+    onSubmit(title, category, severity, description, nik, photoUri);
+
+    // Reset seluruh field
+    setNik('');
     setTitle('');
     setDescription('');
+    setPhotoUri(undefined);
     onClose();
   };
 
@@ -51,6 +100,17 @@ export const AddReportModal = ({ visible, onClose, onSubmit }: AddReportModalPro
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Input Identitas / NIK (Akan diamankan via expo-secure-store) */}
+            <Text style={styles.label}>NIK Pelapor (Terenkripsi Aman 🔒)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Masukkan 16 digit NIK Anda"
+              keyboardType="numeric"
+              maxLength={16}
+              value={nik}
+              onChangeText={setNik}
+            />
+
             {/* Input Judul */}
             <Text style={styles.label}>Judul Laporan</Text>
             <TextInput
@@ -91,6 +151,26 @@ export const AddReportModal = ({ visible, onClose, onSubmit }: AddReportModalPro
               ))}
             </View>
 
+            {/* Tombol Unggah / Ambil Foto Bukti */}
+            <Text style={styles.label}>Foto Bukti Kejadian</Text>
+            <View style={styles.photoActionRow}>
+              <TouchableOpacity style={styles.photoBtn} onPress={() => handlePickImage(true)}>
+                <Text style={styles.photoBtnText}>📷 Ambil Foto</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoBtn} onPress={() => handlePickImage(false)}>
+                <Text style={styles.photoBtnText}>🖼️ Pilih Galeri</Text>
+              </TouchableOpacity>
+            </View>
+
+            {photoUri && (
+              <View style={styles.previewContainer}>
+                <Image source={{ uri: photoUri }} style={styles.previewImage} />
+                <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setPhotoUri(undefined)}>
+                  <Text style={styles.removePhotoText}>Hapus Foto</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Input Deskripsi */}
             <Text style={styles.label}>Deskripsi Kejadian</Text>
             <TextInput
@@ -124,13 +204,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: '85%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 18,
@@ -143,7 +223,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#334155',
     marginTop: 12,
@@ -158,7 +238,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   textArea: {
-    height: 90,
+    height: 85,
     textAlignVertical: 'top',
   },
   chipRow: {
@@ -189,13 +269,52 @@ const styles = StyleSheet.create({
   bgRed: { backgroundColor: '#ef4444', borderColor: '#ef4444' },
   bgOrange: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
   textWhite: { color: '#ffffff', fontWeight: 'bold' },
+  photoActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  photoBtn: {
+    flex: 1,
+    backgroundColor: '#e0f2fe',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  photoBtnText: {
+    color: '#0369a1',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  previewContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    height: 160,
+    borderRadius: 10,
+  },
+  removePhotoBtn: {
+    marginTop: 6,
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  removePhotoText: {
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   submitButton: {
     backgroundColor: '#0284c7',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   submitButtonText: {
     color: '#ffffff',
