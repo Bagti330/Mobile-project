@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
@@ -19,98 +20,84 @@ const createFallbackLocation = (): Location.LocationObject => ({
 });
 
 export const useLocationTracking = () => {
-  const [location, setLocation] = useState<Location.LocationObject | null>(
-    Platform.OS === 'web' ? createFallbackLocation() : null
-  );
+  const [location, setLocation] =
+    useState<Location.LocationObject | null>(
+      createFallbackLocation()
+    );
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    let subscription: Location.LocationSubscription | null = null;
+  const requestLocation = async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setErrorMsg(null);
 
-    if (Platform.OS === 'web') {
-      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-        if (isMounted) {
-          setLocation(createFallbackLocation());
-        }
-        return () => {
-          isMounted = false;
-        };
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!isMounted) return;
-          setLocation({
-            coords: {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              altitude: position.coords.altitude,
-              accuracy: position.coords.accuracy,
-              altitudeAccuracy: position.coords.altitudeAccuracy,
-              heading: position.coords.heading,
-              speed: position.coords.speed,
-            },
-            timestamp: position.timestamp,
-          });
-          setErrorMsg(null);
-        },
-        () => {
-          if (!isMounted) return;
-          setLocation(createFallbackLocation());
-        },
-        {
-          enableHighAccuracy: false,
-          timeout: 8000,
-          maximumAge: 60000,
-        }
-      );
-
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          if (isMounted) {
-            setErrorMsg('Izin akses lokasi ditolak');
-          }
-          return;
-        }
-
-        const currentLocation = await Location.getCurrentPositionAsync({});
-        if (isMounted) {
-          setLocation(currentLocation);
-        }
-
-        subscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            distanceInterval: 10,
-          },
-          (newLocation) => {
-            if (isMounted) {
-              setLocation(newLocation);
-            }
+      if (Platform.OS === 'web') {
+        const position = await new Promise<GeolocationPosition>(
+          (resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              resolve,
+              reject,
+              {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000,
+              }
+            );
           }
         );
-      } catch {
-        if (isMounted) {
-          setErrorMsg('Gagal mengakses lokasi perangkat');
-        }
-      }
-    })();
 
-    return () => {
-      isMounted = false;
-      if (subscription) {
-        subscription.remove();
+        setLocation({
+          coords: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            altitude: position.coords.altitude,
+            accuracy: position.coords.accuracy,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
+          },
+          timestamp: position.timestamp,
+        });
+
+        return true;
       }
-    };
+
+      const { status } =
+        await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        setErrorMsg('Izin akses lokasi ditolak.');
+        return false;
+      }
+
+      const currentLocation =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+      setLocation(currentLocation);
+      return true;
+
+    } catch (error) {
+      console.error('Location error:', error);
+      setErrorMsg('Gagal mengakses lokasi perangkat.');
+      return false;
+
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    requestLocation();
   }, []);
 
-  return { location, errorMsg };
+  return {
+    location,
+    errorMsg,
+    requestLocation,
+    isLoading,
+  };
 };

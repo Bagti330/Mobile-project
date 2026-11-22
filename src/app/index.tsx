@@ -17,29 +17,66 @@ import { CustomMarker } from '../components/CustomMarker';
 import { ReportDetailCard } from '../components/ReportDetailCard';
 import { AddReportModal } from '../components/AddReportModal';
 import { StatusBanner } from '../components/StatusBanner';
-import { ReportCategory, SeverityLevel, ReportItem } from '../types/report';
+import {
+  ReportCategory,
+  SeverityLevel,
+  ReportItem,
+} from '../types/report';
+import { checkSavedFiles } from '../services/checkStorage';
 
 const isWeb = Platform.OS === 'web';
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
-  const { reports, selectedReport, setSelectedReport, addReport } = useReportStore();
-  const { location, errorMsg } = useLocationTracking();
-  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
-  const [isMounted, setIsMounted] = useState<boolean>(false);
+
+  const {
+    reports,
+    selectedReport,
+    setSelectedReport,
+    addReport,
+  } = useReportStore();
+
+  const {
+    location,
+    errorMsg,
+    requestLocation,
+    isLoading,
+  } = useLocationTracking();
+
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const currentLat = location ? location.coords.latitude : -7.96662;
-  const currentLon = location ? location.coords.longitude : 112.63263;
+  useEffect(() => {
+  if (!isWeb) {
+    checkSavedFiles();
+  }
+}, []);
+
+  const currentLat = location
+    ? location.coords.latitude
+    : -7.96662;
+
+  const currentLon = location
+    ? location.coords.longitude
+    : 112.63263;
 
   const initialRegion = {
     latitude: currentLat,
     longitude: currentLon,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
+  };
+
+  const handleRequestLocation = async () => {
+    const success = await requestLocation();
+
+    if (success) {
+      console.log('Lokasi berhasil diperoleh');
+    }
   };
 
   const handleAddReport = async (
@@ -51,7 +88,10 @@ export default function HomeScreen() {
     photoUri?: string
   ) => {
     if (!isWeb) {
-      await SecureStore.setItemAsync('user_reporter_nik', nik);
+      await SecureStore.setItemAsync(
+        'user_reporter_nik',
+        nik
+      );
     }
 
     const newReport: ReportItem = {
@@ -72,15 +112,13 @@ export default function HomeScreen() {
     addReport(newReport);
   };
 
-  // =========================================================================
-  // 1. TAMPILAN BROWSER WEB (localhost:8081)
-  // =========================================================================
   if (isWeb) {
     if (!isMounted) {
       return <SafeAreaView style={styles.container} />;
     }
 
     const mapHeight = Math.max(height * 0.55, 320);
+
     const osmUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${
       currentLon - 0.02
     }%2C${currentLat - 0.02}%2C${currentLon + 0.02}%2C${
@@ -90,13 +128,25 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>Civic Pulse 🚨 (Web Preview)</Text>
-          <Text style={styles.headerSubtitle}>Pantau & Laporkan Infrastruktur Kota</Text>
+          <Text style={styles.headerTitle}>
+            Civic Pulse 🚨 (Web Preview)
+          </Text>
+
+          <Text style={styles.headerSubtitle}>
+            Pantau & Laporkan Infrastruktur Kota
+          </Text>
+
           <StatusBanner permissionError={errorMsg} />
         </View>
 
         <View style={styles.webContentWrapper}>
-          <View style={{ width: '100%', height: mapHeight, overflow: 'hidden' }}>
+          <View
+            style={{
+              width: '100%',
+              height: mapHeight,
+              overflow: 'hidden',
+            }}
+          >
             <iframe
               src={osmUrl}
               width={width}
@@ -115,6 +165,7 @@ export default function HomeScreen() {
             <Text style={styles.webListTitle}>
               📋 Daftar Laporan Masuk ({reports.length})
             </Text>
+
             <ScrollView showsVerticalScrollIndicator={false}>
               {reports.map((item) => (
                 <TouchableOpacity
@@ -123,11 +174,15 @@ export default function HomeScreen() {
                   style={styles.webListItem}
                 >
                   <View>
-                    <Text style={styles.webItemTitle}>{item.title}</Text>
+                    <Text style={styles.webItemTitle}>
+                      {item.title}
+                    </Text>
+
                     <Text style={styles.webItemSub}>
                       {item.category} • {item.timestamp}
                     </Text>
                   </View>
+
                   <View
                     style={[
                       styles.severityBadge,
@@ -138,7 +193,9 @@ export default function HomeScreen() {
                         : styles.bgGreen,
                     ]}
                   >
-                    <Text style={styles.severityText}>{item.severity}</Text>
+                    <Text style={styles.severityText}>
+                      {item.severity}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -161,6 +218,7 @@ export default function HomeScreen() {
           report={selectedReport}
           onClose={() => setSelectedReport(null)}
         />
+
         <AddReportModal
           visible={isModalVisible}
           onClose={() => setIsModalVisible(false)}
@@ -170,36 +228,50 @@ export default function HomeScreen() {
     );
   }
 
-  // =========================================================================
-  // 2. TAMPILAN PERANGKAT SELULER (Android / iOS via Expo Go)
-  // =========================================================================
   const MapView = require('react-native-maps').default;
-  const PROVIDER_DEFAULT = require('react-native-maps').PROVIDER_DEFAULT;
+  const PROVIDER_DEFAULT =
+    require('react-native-maps').PROVIDER_DEFAULT;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={['top']}
+    >
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Civic Pulse 🚨</Text>
-        <Text style={styles.headerSubtitle}>Pantau & Laporkan Infrastruktur Kota</Text>
+        <Text style={styles.headerTitle}>
+          Civic Pulse 🚨
+        </Text>
+
+        <Text style={styles.headerSubtitle}>
+          Pantau & Laporkan Infrastruktur Kota
+        </Text>
+
         <StatusBanner permissionError={errorMsg} />
       </View>
 
-      <MapView
-        provider={PROVIDER_DEFAULT}
-        style={{ width, height }}
-        region={initialRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
-        onPress={() => setSelectedReport(null)}
-      >
-        {reports.map((report) => (
-          <CustomMarker
-            key={report.id}
-            report={report}
-            onSelect={(item) => setSelectedReport(item)}
-          />
-        ))}
-      </MapView>
+      
+<MapView
+  provider={PROVIDER_DEFAULT}
+  style={{ width, height }}
+  region={{
+    latitude: currentLat,
+    longitude: currentLon,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  }}
+  showsUserLocation={true}
+  showsMyLocationButton={true}
+  onPress={() => setSelectedReport(null)}
+>
+  {reports.map((report) => (
+    <CustomMarker
+      key={report.id}
+      report={report}
+      onSelect={(item) => setSelectedReport(item)}
+    />
+  ))}
+  </MapView>
+
 
       {!selectedReport && (
         <TouchableOpacity
@@ -216,6 +288,7 @@ export default function HomeScreen() {
         report={selectedReport}
         onClose={() => setSelectedReport(null)}
       />
+
       <AddReportModal
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
@@ -230,6 +303,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+
   headerContainer: {
     position: 'absolute',
     top: Platform.OS === 'web' ? 16 : 50,
@@ -245,20 +319,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#0f172a',
   },
+
   headerSubtitle: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
   },
+
   webContentWrapper: {
     flex: 1,
     marginTop: 95,
   },
+
   webListSection: {
     flex: 1,
     padding: 16,
@@ -266,12 +344,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#e2e8f0',
   },
+
   webListTitle: {
     fontWeight: 'bold',
     fontSize: 16,
     marginBottom: 10,
     color: '#0f172a',
   },
+
   webListItem: {
     paddingVertical: 12,
     paddingHorizontal: 10,
@@ -281,29 +361,65 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+
   webItemTitle: {
     fontWeight: '600',
     fontSize: 14,
     color: '#1e293b',
   },
+
   webItemSub: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
   },
+
   severityBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
+
   severityText: {
     color: '#ffffff',
     fontSize: 11,
     fontWeight: 'bold',
   },
-  bgRed: { backgroundColor: '#ef4444' },
-  bgOrange: { backgroundColor: '#f59e0b' },
-  bgGreen: { backgroundColor: '#10b981' },
+
+  bgRed: {
+    backgroundColor: '#ef4444',
+  },
+
+  bgOrange: {
+    backgroundColor: '#f59e0b',
+  },
+
+  bgGreen: {
+    backgroundColor: '#10b981',
+  },
+
+  locationButton: {
+    position: 'absolute',
+    top: 155,
+    right: 16,
+    zIndex: 15,
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+
+  locationButtonText: {
+    color: '#0369a1',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+
   fabButton: {
     position: 'absolute',
     bottom: 30,
@@ -317,12 +433,14 @@ const styles = StyleSheet.create({
     elevation: 6,
     zIndex: 20,
   },
+
   fabIcon: {
     color: '#ffffff',
     fontSize: 20,
     fontWeight: 'bold',
     marginRight: 6,
   },
+
   fabText: {
     color: '#ffffff',
     fontWeight: 'bold',
